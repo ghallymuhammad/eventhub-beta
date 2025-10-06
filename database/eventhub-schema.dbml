@@ -1,0 +1,420 @@
+// EventHub Mini Project - Database Schema
+// Generated for event management platform with role-based access and payment system
+
+Project EventHub {
+  database_type: 'PostgreSQL'
+  Note: 'EventHub - Modern event management platform with role-based access, ticket selection, and bank transfer payment system'
+}
+
+// ========================================
+// USER MANAGEMENT TABLES
+// ========================================
+
+Table users {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  email varchar(255) [unique, not null]
+  password_hash varchar(255) [not null]
+  name varchar(255) [not null]
+  phone varchar(20)
+  role user_role [not null, default: 'user']
+  email_verified boolean [default: false]
+  profile_image varchar(500)
+  points_balance integer [default: 0, note: 'Points earned from completed transactions']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  Note: 'User accounts with role-based access (guest, user, organizer)'
+}
+
+Table user_sessions {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id, not null]
+  session_token varchar(255) [unique, not null]
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'User authentication sessions'
+}
+
+Table organizer_profiles {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id, not null, unique]
+  organization_name varchar(255) [not null]
+  description text
+  website varchar(500)
+  social_media jsonb [note: 'JSON object with social media links']
+  bank_account_number varchar(50)
+  bank_account_name varchar(255)
+  bank_name varchar(255)
+  verification_status organizer_status [default: 'pending']
+  verification_documents jsonb [note: 'Array of document URLs']
+  total_events integer [default: 0]
+  total_revenue decimal(15,2) [default: 0]
+  average_rating decimal(3,2) [default: 0]
+  total_reviews integer [default: 0]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  Note: 'Extended profile information for event organizers'
+}
+
+// ========================================
+// EVENT MANAGEMENT TABLES  
+// ========================================
+
+Table events {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  organizer_id uuid [ref: > users.id, not null]
+  name varchar(255) [not null]
+  description text
+  category varchar(100)
+  location varchar(500) [not null]
+  start_date date [not null]
+  end_date date
+  start_time time [not null]
+  end_time time
+  image_url varchar(500)
+  status event_status [default: 'draft']
+  total_seats integer [not null, default: 0]
+  available_seats integer [not null, default: 0]
+  is_free boolean [default: true]
+  min_age integer
+  max_attendees integer
+  registration_deadline timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  Note: 'Main events table with basic event information'
+}
+
+Table ticket_types {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  event_id uuid [ref: > events.id, not null]
+  name varchar(255) [not null]
+  description text
+  price decimal(10,2) [not null, default: 0]
+  seats_allocated integer [not null]
+  seats_sold integer [default: 0]
+  sale_start_date timestamp
+  sale_end_date timestamp
+  is_active boolean [default: true]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Different ticket types for events (General, VIP, Early Bird, etc.)'
+}
+
+// ========================================
+// VOUCHER & PROMOTION TABLES
+// ========================================
+
+Table vouchers {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  event_id uuid [ref: > events.id]
+  organizer_id uuid [ref: > users.id, not null]
+  code varchar(50) [unique, not null]
+  name varchar(255)
+  discount_type voucher_type [not null]
+  discount_value decimal(10,2) [not null]
+  min_purchase_amount decimal(10,2) [default: 0]
+  max_uses integer [default: 1]
+  current_uses integer [default: 0]
+  valid_from timestamp [not null]
+  valid_until timestamp [not null]
+  is_active boolean [default: true]
+  is_event_specific boolean [default: true]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Promotional vouchers for discounts'
+}
+
+Table referral_vouchers {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  organizer_id uuid [ref: > users.id, not null]
+  code varchar(50) [unique, not null]
+  discount_value decimal(10,2) [not null]
+  valid_days integer [not null, default: 30]
+  max_uses integer [default: 100]
+  current_uses integer [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Referral vouchers for user acquisition'
+}
+
+// ========================================
+// TRANSACTION & PAYMENT TABLES
+// ========================================
+
+Table transactions {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  transaction_code varchar(20) [unique, not null, note: 'Format: TXN-XXXXX']
+  user_id uuid [ref: > users.id, not null]
+  event_id uuid [ref: > events.id, not null]
+  organizer_id uuid [ref: > users.id, not null]
+  subtotal decimal(12,2) [not null]
+  points_used integer [default: 0]
+  voucher_discount decimal(12,2) [default: 0]
+  voucher_code varchar(50)
+  final_amount decimal(12,2) [not null]
+  status transaction_status [default: 'pending']
+  payment_method payment_method_type [default: 'bank_transfer']
+  payment_proof_url varchar(500)
+  payment_proof_filename varchar(255)
+  admin_notes text
+  expires_at timestamp [note: '2 hours from creation for payment']
+  paid_at timestamp
+  confirmed_at timestamp
+  points_earned integer [default: 0, note: '10% of final amount as points']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  Note: 'Main transactions table tracking all ticket purchases'
+}
+
+Table transaction_tickets {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  transaction_id uuid [ref: > transactions.id, not null]
+  ticket_type_id uuid [ref: > ticket_types.id, not null]
+  quantity integer [not null]
+  unit_price decimal(10,2) [not null]
+  total_price decimal(10,2) [not null]
+  
+  Note: 'Line items for each transaction showing ticket quantities and prices'
+}
+
+Table tickets {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  ticket_code varchar(20) [unique, not null, note: 'Format: TKT-XXXXX']
+  transaction_id uuid [ref: > transactions.id, not null]
+  ticket_type_id uuid [ref: > ticket_types.id, not null]
+  user_id uuid [ref: > users.id, not null]
+  event_id uuid [ref: > events.id, not null]
+  status ticket_status [default: 'active']
+  qr_code varchar(255) [unique, note: 'QR code for event entry']
+  checked_in boolean [default: false]
+  checked_in_at timestamp
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Individual tickets generated after successful payment'
+}
+
+// ========================================
+// REVIEW & RATING TABLES
+// ========================================
+
+Table event_reviews {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  event_id uuid [ref: > events.id, not null]
+  user_id uuid [ref: > users.id, not null]
+  organizer_id uuid [ref: > users.id, not null]
+  transaction_id uuid [ref: > transactions.id, not null]
+  rating integer [not null, note: 'Rating from 1 to 5']
+  review_text text
+  is_anonymous boolean [default: false]
+  is_approved boolean [default: true]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Event reviews by users who attended the event'
+  
+  indexes {
+    (event_id, user_id) [unique, note: 'One review per user per event']
+  }
+}
+
+// ========================================
+// NOTIFICATION & COMMUNICATION TABLES  
+// ========================================
+
+Table notifications {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id, not null]
+  type notification_type [not null]
+  title varchar(255) [not null]
+  message text [not null]
+  related_entity_type varchar(50) [note: 'event, transaction, etc.']
+  related_entity_id uuid
+  is_read boolean [default: false]
+  created_at timestamp [default: `now()`]
+  
+  Note: 'System notifications for users'
+}
+
+Table email_logs {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id]
+  email_address varchar(255) [not null]
+  subject varchar(500) [not null]
+  email_type email_type [not null]
+  status email_status [default: 'pending']
+  sent_at timestamp
+  error_message text
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Email delivery tracking'
+}
+
+// ========================================
+// SYSTEM & AUDIT TABLES
+// ========================================
+
+Table audit_logs {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id]
+  action varchar(100) [not null]
+  entity_type varchar(50) [not null]
+  entity_id uuid
+  old_values jsonb
+  new_values jsonb
+  ip_address inet
+  user_agent text
+  created_at timestamp [default: `now()`]
+  
+  Note: 'Audit trail for important system actions'
+}
+
+Table system_settings {
+  id uuid [primary key, default: `gen_random_uuid()`]
+  key varchar(100) [unique, not null]
+  value jsonb [not null]
+  description text
+  updated_by uuid [ref: > users.id]
+  updated_at timestamp [default: `now()`]
+  
+  Note: 'System-wide configuration settings'
+}
+
+// ========================================
+// ENUMS
+// ========================================
+
+Enum user_role {
+  guest
+  user
+  organizer  
+  admin
+}
+
+Enum organizer_status {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+Enum event_status {
+  draft
+  published
+  active
+  completed
+  cancelled
+  postponed
+}
+
+Enum voucher_type {
+  percentage
+  fixed_amount
+}
+
+Enum transaction_status {
+  pending          // Just created, waiting for payment
+  waiting_payment  // User has 2 hours to pay
+  waiting_admin    // Payment proof uploaded, waiting admin confirmation  
+  confirmed        // Admin approved payment
+  completed        // Event finished, points awarded
+  rejected         // Admin rejected payment proof
+  expired          // Payment window expired
+  cancelled        // User or admin cancelled
+}
+
+Enum payment_method_type {
+  bank_transfer
+  points
+  free
+}
+
+Enum ticket_status {
+  active
+  used
+  cancelled
+  expired
+}
+
+Enum notification_type {
+  payment_reminder
+  payment_confirmed
+  event_reminder
+  event_update
+  review_request
+  points_awarded
+}
+
+Enum email_type {
+  welcome
+  password_reset
+  payment_confirmation
+  event_reminder
+  payment_reminder
+  review_request
+}
+
+Enum email_status {
+  pending
+  sent
+  failed
+  bounced
+}
+
+// ========================================
+// RELATIONSHIPS & INDEXES
+// ========================================
+
+// Additional indexes for performance
+Table events {
+  indexes {
+    organizer_id
+    status
+    start_date
+    category
+    (status, start_date)
+  }
+}
+
+Table transactions {
+  indexes {
+    user_id
+    event_id
+    organizer_id
+    status
+    created_at
+    expires_at
+    (status, expires_at)
+  }
+}
+
+Table tickets {
+  indexes {
+    user_id
+    event_id
+    transaction_id
+    status
+    ticket_code [unique]
+  }
+}
+
+Table event_reviews {
+  indexes {
+    event_id
+    organizer_id
+    user_id
+    created_at
+  }
+}
+
+Table notifications {
+  indexes {
+    user_id
+    is_read
+    created_at
+    (user_id, is_read)
+  }
+}

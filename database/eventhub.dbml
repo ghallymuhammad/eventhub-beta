@@ -1,0 +1,553 @@
+// EventHub Database Schema
+// DBML (Database Markup Language) for PostgreSQL
+// Use with dbdiagram.io for visualization
+
+Project EventHub {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # EventHub Event Management Platform Database
+    
+    This database supports a comprehensive event management platform with:
+    - User authentication and role-based access
+    - Event creation and management
+    - Ticket types and transactions
+    - Points and coupon reward system
+    - Reviews and ratings
+    - Referral system
+    
+    Created: 2024
+    Author: Muhammad Ghally
+  '''
+}
+
+// ================================
+// ENUMS
+// ================================
+
+Enum user_role {
+  USER
+  ORGANIZER
+  ADMIN
+}
+
+Enum transaction_status {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+Enum ticket_type {
+  REGULAR
+  VIP
+  PREMIUM
+}
+
+Enum coupon_type {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+// ================================
+// CORE TABLES
+// ================================
+
+Table users {
+  id varchar(25) [pk, note: 'CUID primary key']
+  email varchar(255) [unique, not null]
+  name varchar(100) [not null]
+  password varchar(255) [not null, note: 'Hashed with bcrypt']
+  role user_role [default: 'USER']
+  phone varchar(20)
+  avatar_url varchar(500)
+  bio text
+  
+  // Referral system
+  referral_code varchar(25) [unique, not null, note: 'Unique referral code for this user']
+  referred_by varchar(25) [ref: > users.id, note: 'User who referred this user']
+  
+  // Preferences
+  email_notifications boolean [default: true]
+  sms_notifications boolean [default: false]
+  
+  // Metadata
+  email_verified boolean [default: false]
+  email_verified_at timestamp
+  last_login timestamp
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    email
+    referral_code
+    role
+    created_at
+  }
+  
+  note: 'Core user accounts with authentication and profile information'
+}
+
+Table events {
+  id varchar(25) [pk]
+  title varchar(200) [not null]
+  description text
+  date timestamp [not null, note: 'Event date and time']
+  end_date timestamp [note: 'Event end date (optional for multi-day events)']
+  location varchar(300) [not null]
+  address text
+  capacity integer [not null, note: 'Maximum attendees']
+  price decimal(10,2) [note: 'Base price, null for free events']
+  
+  // Media
+  image_url varchar(500)
+  banner_url varchar(500)
+  
+  // Categories and tags
+  category varchar(50)
+  tags varchar(500) [note: 'JSON array of tags']
+  
+  // Organizer
+  organizer_id varchar(25) [ref: > users.id, not null]
+  
+  // Status and visibility
+  is_published boolean [default: false]
+  is_featured boolean [default: false]
+  
+  // Registration settings
+  registration_start timestamp
+  registration_end timestamp
+  requires_approval boolean [default: false]
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    organizer_id
+    date
+    category
+    is_published
+    created_at
+    (title, description) [type: 'gin', note: 'Full-text search']
+  }
+  
+  note: 'Events created by organizers'
+}
+
+Table event_ticket_types {
+  id varchar(25) [pk]
+  event_id varchar(25) [ref: > events.id, not null]
+  name varchar(100) [not null, note: 'e.g., General Admission, VIP, Early Bird']
+  description text
+  type ticket_type [not null]
+  price decimal(10,2) [not null]
+  quantity_available integer [not null]
+  quantity_sold integer [default: 0]
+  
+  // Availability window
+  sale_start timestamp
+  sale_end timestamp
+  
+  // Features
+  features text [note: 'JSON array of features included with this ticket type']
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    event_id
+    type
+  }
+  
+  note: 'Different ticket types for events (Regular, VIP, Premium)'
+}
+
+Table transactions {
+  id varchar(25) [pk]
+  user_id varchar(25) [ref: > users.id, not null]
+  event_id varchar(25) [ref: > events.id, not null]
+  
+  // Quantities and pricing
+  quantity integer [not null, default: 1]
+  unit_price decimal(10,2) [not null]
+  subtotal decimal(10,2) [not null]
+  
+  // Discounts
+  points_used integer [default: 0, note: 'Points used as discount']
+  points_value decimal(10,2) [default: 0, note: 'Monetary value of points used']
+  coupon_id varchar(25) [ref: > coupons.id]
+  coupon_discount decimal(10,2) [default: 0]
+  
+  // Final amount
+  total_amount decimal(10,2) [not null, note: 'Final amount after discounts']
+  
+  // Transaction details
+  status transaction_status [default: 'PENDING']
+  payment_method varchar(50) [default: 'BANK_TRANSFER']
+  payment_proof_url varchar(500) [note: 'URL to uploaded payment proof']
+  
+  // Notes and admin actions
+  organizer_notes text [note: 'Notes from organizer when approving/rejecting']
+  admin_notes text
+  
+  // Important timestamps
+  expires_at timestamp [note: 'When pending transaction expires']
+  confirmed_at timestamp
+  cancelled_at timestamp
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    user_id
+    event_id
+    status
+    created_at
+    expires_at
+  }
+  
+  note: 'Event ticket purchases and payment tracking'
+}
+
+Table transaction_items {
+  id varchar(25) [pk]
+  transaction_id varchar(25) [ref: > transactions.id, not null]
+  ticket_type_id varchar(25) [ref: > event_ticket_types.id, not null]
+  quantity integer [not null]
+  unit_price decimal(10,2) [not null]
+  subtotal decimal(10,2) [not null]
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    transaction_id
+    ticket_type_id
+  }
+  
+  note: 'Individual items within a transaction (for multiple ticket types)'
+}
+
+// ================================
+// REWARDS SYSTEM
+// ================================
+
+Table points {
+  id varchar(25) [pk]
+  user_id varchar(25) [ref: > users.id, not null]
+  amount integer [not null, note: 'Points amount (positive for earning, negative for spending)']
+  description varchar(200) [not null]
+  
+  // Source tracking
+  source_type varchar(50) [note: 'REFERRAL, PURCHASE, WELCOME_BONUS, ADMIN_GRANT']
+  source_id varchar(25) [note: 'Related transaction, event, or referral ID']
+  event_id varchar(25) [ref: > events.id]
+  
+  // Expiration
+  expires_at timestamp [note: 'When points expire (1 year from creation)']
+  is_used boolean [default: false]
+  used_at timestamp
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    user_id
+    expires_at
+    is_used
+    created_at
+  }
+  
+  note: 'User points for rewards system'
+}
+
+Table coupons {
+  id varchar(25) [pk]
+  code varchar(20) [unique, not null, note: 'Coupon code (e.g., WELCOME20)']
+  name varchar(100) [not null]
+  description text
+  
+  // Discount settings
+  type coupon_type [not null]
+  value decimal(10,2) [not null, note: 'Percentage or fixed amount']
+  min_purchase_amount decimal(10,2) [note: 'Minimum purchase required']
+  max_discount_amount decimal(10,2) [note: 'Maximum discount cap for percentage coupons']
+  
+  // Usage limits
+  usage_limit integer [note: 'Total usage limit (null for unlimited)']
+  usage_count integer [default: 0]
+  user_usage_limit integer [default: 1, note: 'Per-user usage limit']
+  
+  // Validity
+  starts_at timestamp
+  expires_at timestamp
+  is_active boolean [default: true]
+  
+  // Restrictions
+  applicable_events varchar(500) [note: 'JSON array of event IDs (null for all events)']
+  applicable_categories varchar(500) [note: 'JSON array of event categories']
+  min_tickets integer [note: 'Minimum tickets required']
+  
+  // Creator
+  created_by varchar(25) [ref: > users.id, not null]
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    code
+    is_active
+    expires_at
+    created_by
+  }
+  
+  note: 'Discount coupons for events'
+}
+
+Table coupon_usages {
+  id varchar(25) [pk]
+  coupon_id varchar(25) [ref: > coupons.id, not null]
+  user_id varchar(25) [ref: > users.id, not null]
+  transaction_id varchar(25) [ref: > transactions.id, not null]
+  discount_amount decimal(10,2) [not null]
+  used_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    coupon_id
+    user_id
+    used_at
+  }
+  
+  note: 'Track coupon usage by users'
+}
+
+// ================================
+// REVIEWS & RATINGS
+// ================================
+
+Table reviews {
+  id varchar(25) [pk]
+  event_id varchar(25) [ref: > events.id, not null]
+  user_id varchar(25) [ref: > users.id, not null]
+  transaction_id varchar(25) [ref: > transactions.id, note: 'Only users who attended can review']
+  
+  // Review content
+  rating integer [not null, note: '1-5 stars']
+  title varchar(150)
+  comment text
+  
+  // Moderation
+  is_approved boolean [default: true]
+  is_featured boolean [default: false]
+  moderator_notes text
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    event_id
+    user_id
+    rating
+    is_approved
+    created_at
+    (user_id, event_id) [unique, name: 'unique_user_event_review']
+  }
+  
+  note: 'User reviews and ratings for events'
+}
+
+// ================================
+// NOTIFICATIONS & COMMUNICATIONS
+// ================================
+
+Table notifications {
+  id varchar(25) [pk]
+  user_id varchar(25) [ref: > users.id, not null]
+  title varchar(200) [not null]
+  message text [not null]
+  type varchar(50) [not null, note: 'TRANSACTION_CONFIRMED, EVENT_REMINDER, etc.']
+  
+  // Related entities
+  related_id varchar(25) [note: 'ID of related transaction, event, etc.']
+  action_url varchar(500) [note: 'URL for user to take action']
+  
+  // Status
+  is_read boolean [default: false]
+  read_at timestamp
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    user_id
+    is_read
+    created_at
+    type
+  }
+  
+  note: 'User notifications for various events'
+}
+
+// ================================
+// ANALYTICS & TRACKING
+// ================================
+
+Table event_analytics {
+  id varchar(25) [pk]
+  event_id varchar(25) [ref: > events.id, not null]
+  date date [not null]
+  
+  // Page views and interactions
+  page_views integer [default: 0]
+  unique_visitors integer [default: 0]
+  ticket_page_views integer [default: 0]
+  
+  // Registration funnel
+  registration_starts integer [default: 0, note: 'Users who started registration']
+  registration_completions integer [default: 0, note: 'Completed registrations']
+  
+  // Revenue tracking
+  gross_revenue decimal(10,2) [default: 0]
+  net_revenue decimal(10,2) [default: 0]
+  tickets_sold integer [default: 0]
+  
+  indexes {
+    event_id
+    date
+    (event_id, date) [unique]
+  }
+  
+  note: 'Daily analytics for events'
+}
+
+// ================================
+// SYSTEM TABLES
+// ================================
+
+Table audit_logs {
+  id varchar(25) [pk]
+  user_id varchar(25) [ref: > users.id]
+  action varchar(100) [not null, note: 'CREATE_EVENT, UPDATE_TRANSACTION, etc.']
+  entity_type varchar(50) [not null, note: 'event, transaction, user, etc.']
+  entity_id varchar(25) [not null]
+  
+  // Change tracking
+  old_values text [note: 'JSON of previous values']
+  new_values text [note: 'JSON of new values']
+  
+  // Context
+  ip_address inet
+  user_agent text
+  
+  // Metadata
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    user_id
+    entity_type
+    entity_id
+    action
+    created_at
+  }
+  
+  note: 'Audit trail for important system actions'
+}
+
+Table system_settings {
+  id varchar(25) [pk]
+  key varchar(100) [unique, not null, note: 'e.g., points_per_dollar, referral_bonus']
+  value text [not null, note: 'JSON value']
+  description text
+  
+  // Metadata
+  updated_by varchar(25) [ref: > users.id]
+  updated_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    key
+  }
+  
+  note: 'System-wide configuration settings'
+}
+
+// ================================
+// ADDITIONAL RELATIONSHIPS
+// ================================
+
+// User referrals (self-referencing)
+Ref: users.referred_by > users.id
+
+// Event favorites (many-to-many)
+Table user_event_favorites {
+  user_id varchar(25) [ref: > users.id, not null]
+  event_id varchar(25) [ref: > events.id, not null]
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    (user_id, event_id) [pk]
+    user_id
+    event_id
+  }
+  
+  note: 'User favorite events'
+}
+
+// Event followers (for updates)
+Table event_followers {
+  user_id varchar(25) [ref: > users.id, not null]
+  event_id varchar(25) [ref: > events.id, not null]
+  notify_updates boolean [default: true]
+  created_at timestamp [default: `now()`, not null]
+  
+  indexes {
+    (user_id, event_id) [pk]
+    event_id
+  }
+  
+  note: 'Users following events for updates'
+}
+
+// ================================
+// VIEWS FOR COMMON QUERIES
+// ================================
+
+// Note: These would be created as PostgreSQL views
+
+/*
+CREATE VIEW user_stats AS
+SELECT 
+  u.id,
+  u.name,
+  u.email,
+  COUNT(DISTINCT e.id) as events_organized,
+  COUNT(DISTINCT t.id) as tickets_purchased,
+  COALESCE(SUM(p.amount), 0) as total_points,
+  COUNT(DISTINCT r.id) as reviews_written
+FROM users u
+LEFT JOIN events e ON u.id = e.organizer_id
+LEFT JOIN transactions t ON u.id = t.user_id AND t.status = 'CONFIRMED'
+LEFT JOIN points p ON u.id = p.user_id AND p.is_used = false
+LEFT JOIN reviews r ON u.id = r.user_id
+GROUP BY u.id, u.name, u.email;
+
+CREATE VIEW event_summary AS
+SELECT 
+  e.*,
+  u.name as organizer_name,
+  COUNT(DISTINCT t.id) as total_bookings,
+  COUNT(DISTINCT CASE WHEN t.status = 'CONFIRMED' THEN t.id END) as confirmed_bookings,
+  COALESCE(SUM(CASE WHEN t.status = 'CONFIRMED' THEN t.total_amount END), 0) as total_revenue,
+  AVG(r.rating) as average_rating,
+  COUNT(r.id) as review_count
+FROM events e
+LEFT JOIN users u ON e.organizer_id = u.id
+LEFT JOIN transactions t ON e.id = t.event_id
+LEFT JOIN reviews r ON e.id = r.event_id AND r.is_approved = true
+GROUP BY e.id, u.name;
+*/
