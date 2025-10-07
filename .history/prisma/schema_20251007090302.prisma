@@ -1,0 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User model
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            Role      @default(USER)
+  profilePicture  String?
+  phoneNumber     String?
+  
+  // Referral system
+  referralCode    String    @unique @default(cuid())
+  referredBy      String?
+  referredByUser  User?     @relation("UserReferrals", fields: [referredBy], references: [id])
+  referrals       User[]    @relation("UserReferrals")
+  
+  // Points system
+  pointsBalance   Int       @default(0)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  emailVerified   DateTime?
+  
+  // Relations
+  organizedEvents Event[]        @relation("EventOrganizer")
+  transactions    Transaction[]
+  tickets         Ticket[]
+  reviews         Review[]
+  points          Point[]
+  coupons         Coupon[]
+  organizerCoupons Coupon[]      @relation("OrganizerCoupons")
+  sessions        Session[]
+  accounts        Account[]
+
+  @@map("users")
+}
+
+// NextAuth Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Points model for tracking user points
+model Point {
+  id          String      @id @default(cuid())
+  userId      String
+  amount      Int
+  type        PointType
+  description String?
+  expiresAt   DateTime
+  createdAt   DateTime    @default(now())
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("points")
+}
+
+// Coupon model for referral and organizer coupons
+model Coupon {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  discountType  DiscountType
+  discountValue Float
+  minPurchase   Float?
+  maxUses       Int?
+  usedCount     Int         @default(0)
+  isActive      Boolean     @default(true)
+  type          CouponType
+  
+  // For organizer coupons
+  organizerId   String?
+  eventId       String?
+  
+  // For system/referral coupons
+  userId        String?
+  
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+  
+  // Relations
+  user          User?       @relation(fields: [userId], references: [id])
+  organizer     User?       @relation("OrganizerCoupons", fields: [organizerId], references: [id])
+  event         Event?      @relation(fields: [eventId], references: [id])
+  transactions  Transaction[]
+
+  @@map("coupons")
+}
+
+// Event model
+model Event {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  fullDescription String?
+  date            DateTime
+  time            String
+  location        String
+  category        String
+  image           String?
+  capacity        Int
+  price           Float?
+  isPublished     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  organizer       User       @relation("EventOrganizer", fields: [organizerId], references: [id])
+  organizerId     String
+  ticketTypes     TicketType[]
+  transactions    Transaction[]
+  reviews         Review[]
+  coupons         Coupon[]
+
+  @@map("events")
+}
+
+// Ticket Type model
+model TicketType {
+  id          String @id @default(cuid())
+  name        String
+  price       Float
+  description String?
+  quantity    Int
+  sold        Int    @default(0)
+
+  // Relations
+  event       Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId     String
+  tickets     Ticket[]
+  transactionTickets TransactionTicket[]
+
+  @@map("ticket_types")
+}
+
+// Transaction model
+model Transaction {
+  id                String            @id @default(cuid())
+  userId            String
+  eventId           String
+  totalAmount       Float
+  originalAmount    Float
+  discountAmount    Float             @default(0)
+  pointsUsed        Int               @default(0)
+  pointsValue       Float             @default(0)
+  status            TransactionStatus @default(WAITING_PAYMENT)
+  paymentMethod     String?
+  paymentReference  String?
+  paymentProof      String?
+  paymentProofUploadedAt DateTime?
+  paymentDeadline   DateTime?         // 2 hours from creation for payment proof
+  adminDeadline     DateTime?         // 3 days from payment proof for admin action
+  adminNotes        String?
+  couponId          String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  user              User              @relation(fields: [userId], references: [id])
+  event             Event             @relation(fields: [eventId], references: [id])
+  coupon            Coupon?           @relation(fields: [couponId], references: [id])
+  transactionTickets TransactionTicket[]
+  tickets           Ticket[]
+
+  @@map("transactions")
+}
+
+// Transaction Ticket model (junction table)
+model TransactionTicket {
+  id           String @id @default(cuid())
+  transactionId String
+  ticketTypeId String
+  quantity     Int
+  unitPrice    Float
+
+  // Relations
+  transaction  Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  ticketType   TicketType  @relation(fields: [ticketTypeId], references: [id])
+
+  @@map("transaction_tickets")
+}
+
+// Individual Ticket model
+model Ticket {
+  id            String       @id @default(cuid())
+  ticketCode    String       @unique
+  userId        String
+  transactionId String
+  ticketTypeId  String
+  status        TicketStatus @default(ACTIVE)
+  usedAt        DateTime?
+  createdAt     DateTime     @default(now())
+
+  // Relations
+  user          User         @relation(fields: [userId], references: [id])
+  transaction   Transaction  @relation(fields: [transactionId], references: [id])
+  ticketType    TicketType   @relation(fields: [ticketTypeId], references: [id])
+
+  @@map("tickets")
+}
+
+// Review model
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+
+  @@map("reviews")
+}
+
+// Enums
+enum Role {
+  USER
+  ORGANIZER
+  ADMIN
+}
+
+enum TransactionStatus {
+  WAITING_PAYMENT     // Waiting for payment proof upload
+  WAITING_CONFIRMATION // Waiting for admin/organizer confirmation  
+  DONE                // Transaction completed successfully
+  REJECTED            // Rejected by admin/organizer
+  EXPIRED             // Payment proof not uploaded in time
+  CANCELLED           // Cancelled by user or system
+}
+
+enum TicketStatus {
+  ACTIVE
+  USED
+  CANCELLED
+}
+
+enum PointType {
+  REFERRAL_BONUS
+  EVENT_REWARD
+  PURCHASE_CASHBACK
+  EXPIRY_DEDUCTION
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CouponType {
+  REFERRAL_REWARD
+  ORGANIZER_VOUCHER
+  SYSTEM_PROMOTION
+}

@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Users/muhammadghally/Documents/eventhub-beta/eventhub-beta/components/event-homepage.tsx/proxy.mjs"],"sourcesContent":["import { registerClientReference } from \"react-server-dom-turbopack/server.edge\";\nexport default registerClientReference(\n    function() { throw new Error(\"Attempted to call the default export of [project]/components/event-homepage.tsx <module evaluation> from the server, but it's on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.\"); },\n    \"[project]/components/event-homepage.tsx <module evaluation>\",\n    \"default\",\n);\n"],"names":[],"mappings":";;;AAAA;;uCACe,CAAA,GAAA,sZAAA,CAAA,0BAAuB,AAAD,EACjC;IAAa,MAAM,IAAI,MAAM;AAAiS,GAC9T,+DACA"}},
+    {"offset": {"line": 15, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 21, "column": 0}, "map": {"version":3,"sources":["file:///Users/muhammadghally/Documents/eventhub-beta/eventhub-beta/components/event-homepage.tsx/proxy.mjs"],"sourcesContent":["import { registerClientReference } from \"react-server-dom-turbopack/server.edge\";\nexport default registerClientReference(\n    function() { throw new Error(\"Attempted to call the default export of [project]/components/event-homepage.tsx from the server, but it's on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.\"); },\n    \"[project]/components/event-homepage.tsx\",\n    \"default\",\n);\n"],"names":[],"mappings":";;;AAAA;;uCACe,CAAA,GAAA,sZAAA,CAAA,0BAAuB,AAAD,EACjC;IAAa,MAAM,IAAI,MAAM;AAA6Q,GAC1S,2CACA"}},
+    {"offset": {"line": 29, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 35, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":""}},
+    {"offset": {"line": 39, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 45, "column": 0}, "map": {"version":3,"sources":["file:///Users/muhammadghally/Documents/eventhub-beta/eventhub-beta/app/%28default%29/page.tsx"],"sourcesContent":["export const metadata = {\n  title: \"EventHub - Discover and Book Exciting Events Near You\",\n  description: \"Find and book exciting events near you. From concerts to workshops, discover amazing experiences.\",\n};\n\nimport EventHomepage from \"@/components/event-homepage\";\n\nexport default function Home() {\n  return (\n    <EventHomepage />\n  );\n}\n"],"names":[],"mappings":";;;;;AAKA;;AALO,MAAM,WAAW;IACtB,OAAO;IACP,aAAa;AACf;;AAIe,SAAS;IACtB,qBACE,+YAAC,gIAAA,CAAA,UAAa;;;;;AAElB"}},
+    {"offset": {"line": 64, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 75, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":""}},
+    {"offset": {"line": 75, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
+}
