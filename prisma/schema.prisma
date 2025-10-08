@@ -199,6 +199,11 @@ model Transaction {
   paymentDeadline   DateTime?         // 2 hours from creation for payment proof
   adminDeadline     DateTime?         // 3 days from payment proof for admin action
   adminNotes        String?
+  rejectionReason   String?           // Reason for rejection if status is REJECTED
+  approvedAt        DateTime?         // When the transaction was approved
+  approvedBy        String?           // Admin who approved the transaction  
+  ticketId          String?           // Generated ticket ID when approved
+  ticketSentAt      DateTime?         // When the ticket email was sent
   couponId          String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -279,8 +284,8 @@ enum EventStatus {
 
 enum TransactionStatus {
   WAITING_PAYMENT     // Waiting for payment proof upload
-  WAITING_CONFIRMATION // Waiting for admin/organizer confirmation  
-  DONE                // Transaction completed successfully
+  PENDING             // Payment proof uploaded, waiting for admin approval
+  CONFIRMED           // Approved by admin - ticket sent
   REJECTED            // Rejected by admin/organizer
   EXPIRED             // Payment proof not uploaded in time
   CANCELLED           // Cancelled by user or system
