@@ -121,12 +121,15 @@ function CheckoutContent() {
         id: index.toString(),
         name: ticket.type,
         price: ticket.price,
-        quantity: ticket.quantity
+        quantity: ticket.quantity,
+        ticketTypeId: `ticket-type-${index}` // For now, use generated IDs
       })),
       subtotal: calculateSubtotal(),
       discount: (usePoints ? pointsToUse : 0) + (appliedVoucher ? appliedVoucher.discount : 0),
       total: calculateTotal(),
       voucherCode: appliedVoucher?.code,
+      pointsUsed: usePoints ? pointsToUse : 0,
+      couponId: appliedVoucher?.id,
       paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() // 2 hours from now
     };
 

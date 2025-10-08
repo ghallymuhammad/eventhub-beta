@@ -23,6 +23,8 @@ interface PaymentData {
   total: number;
   voucherCode?: string;
   paymentDeadline?: string;
+  pointsUsed?: number;
+  couponId?: string;
 }
 
 function PaymentPageContent() {
@@ -152,37 +154,50 @@ function PaymentPageContent() {
     setUploading(true);
 
     try {
-      // Simulate upload process (replace with actual API call)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. First create the transaction in the database
+      const transactionResponse = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: paymentData.eventId,
+          tickets: paymentData.tickets,
+          totalAmount: paymentData.total,
+          originalAmount: paymentData.subtotal,
+          pointsUsed: paymentData.pointsUsed || 0,
+          couponId: paymentData.couponId
+        })
+      });
 
-      // Create transaction record
-      const transaction = {
-        id: Date.now().toString(),
-        eventId: paymentData.eventId,
-        eventName: paymentData.eventName,
-        eventDate: paymentData.eventDate,
-        eventLocation: paymentData.eventLocation,
-        tickets: paymentData.tickets,
-        total: paymentData.total,
-        status: 'pending_verification',
-        paymentMethod: 'Bank Transfer',
-        proofOfPayment: proofOfPayment.name,
-        submittedAt: new Date().toISOString(),
-        voucherCode: paymentData.voucherCode
-      };
+      if (!transactionResponse.ok) {
+        const errorData = await transactionResponse.json();
+        throw new Error(errorData.error || 'Failed to create transaction');
+      }
 
-      // Store transaction (in real app, this would be sent to backend)
-      const existingTransactions = JSON.parse(localStorage.getItem('userTransactions') || '[]');
-      existingTransactions.push(transaction);
-      localStorage.setItem('userTransactions', JSON.stringify(existingTransactions));
+      const { data: { transaction } } = await transactionResponse.json();
+
+      // 2. Upload payment proof
+      const formData = new FormData();
+      formData.append('paymentProof', proofOfPayment);
+      formData.append('transactionId', transaction.id);
+
+      const uploadResponse = await fetch('/api/transactions/payment-proof', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Failed to upload payment proof');
+      }
 
       // Clear pending payment
       localStorage.removeItem('pendingPayment');
 
-      setStep('confirmation');
+      // 3. Redirect to payment-proof tracking page
+      router.push(`/payment-proof?transaction=${transaction.id}`);
     } catch (error) {
       console.error('Error submitting payment:', error);
-      alert('Error submitting payment. Please try again.');
+      alert(`Error submitting payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
     }
