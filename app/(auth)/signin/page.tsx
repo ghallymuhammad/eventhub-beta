@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getSession } from "next-auth/react";
+import { findDemoUser } from "@/lib/demo-users";
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
@@ -42,47 +43,81 @@ export default function SignIn() {
     setError('');
     
     try {
-      // For testing purposes, create a mock signin that works with our burger menu
-      // In production, this would authenticate against the database
-      if (email && password) {
-        
-        // Determine role from email
-        let userRole: string;
-        try {
-          userRole = getUserRoleFromEmail(email);
-        } catch (roleError: any) {
-          setError(roleError.message);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Mock user data based on email for testing
-        const mockUserData = {
-          email,
-          role: userRole,
-          name: userRole === 'ORGANIZER' ? 'Music Events Indonesia' : 'Ahmad Rahman',
-          id: '1'
+      // Check for admin email redirect
+      try {
+        getUserRoleFromEmail(email);
+      } catch (roleError: any) {
+        setError(roleError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // First check if it's a demo user
+      const demoUser = findDemoUser(email, password);
+      
+      if (demoUser) {
+        // Demo user found - create mock session
+        const mockSession = {
+          user: {
+            id: demoUser.id,
+            email: demoUser.email,
+            name: demoUser.name,
+            role: demoUser.role,
+            profilePicture: demoUser.profilePicture,
+          }
         };
 
-        // Store in session storage for mock session
-        sessionStorage.setItem('mockUser', JSON.stringify(mockUserData));
+        // Store in sessionStorage for demo purposes
+        sessionStorage.setItem('mockSession', JSON.stringify(mockSession));
         
-        // For now, we'll use a simple redirect since the database isn't set up
-        // Redirect based on detected role
-        if (userRole === 'ORGANIZER') {
+        // Redirect based on role
+        if (demoUser.role === 'ORGANIZER') {
           router.push('/organizer');
+        } else if (demoUser.role === 'ADMIN') {
+          router.push('/admin');
         } else {
           router.push('/');
         }
         
-        // Force page refresh to update session state
-        window.location.reload();
+        // Force page refresh to update header state
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+        
+        return;
+      }
+
+      // If not a demo user, try NextAuth
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError('Invalid credentials. Please check the demo credentials in the gray box below.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Get the session to determine redirect URL
+      const session = await getSession();
+      if (session?.user) {
+        // Redirect based on user role
+        if (session.user.role === 'ORGANIZER') {
+          router.push('/organizer');
+        } else if (session.user.role === 'ADMIN') {
+          router.push('/admin');
+        } else {
+          router.push('/');
+        }
+        router.refresh(); // Refresh to update session state
       } else {
-        setError('Please fill in all fields');
+        setError('Authentication failed. Please use the demo credentials provided below.');
       }
     } catch (error) {
       console.error('Sign in error:', error);
-      setError('Sign in failed. Please try again.');
+      setError('Sign in failed. Please use the demo credentials provided below.');
     } finally {
       setIsLoading(false);
     }

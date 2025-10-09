@@ -70,6 +70,9 @@ export const restrictTo = (...roles: string[]) => {
   };
 };
 
+// Alias for restrictTo for better naming consistency
+export const authorize = restrictTo;
+
 export const optionalAuth = catchAsync(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     let token: string | undefined;

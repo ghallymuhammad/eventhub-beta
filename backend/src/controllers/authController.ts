@@ -147,68 +147,20 @@ export const register = catchAsync(
         },
       });
 
-      // Handle referral if provided
+      // TODO: Implement referral and points system later
+      // For now, just set the referrer if provided
       if (referralCode) {
         const referrer = await tx.user.findUnique({
           where: { referralCode },
+          select: { id: true }
         });
-
+        
         if (referrer) {
-          // Award points to both users
-          const referralDate = new Date();
-          const pointsExpiryDate = new Date();
-          pointsExpiryDate.setFullYear(pointsExpiryDate.getFullYear() + 1);
-
-          // Award 100 points to referrer
-          await tx.point.create({
-            data: {
-              userId: referrer.id,
-              amount: 100,
-              description: `Referral bonus for inviting ${newUser.name}`,
-              expiresAt: pointsExpiryDate,
-            },
-          });
-
-          // Award 50 points to new user
-          await tx.point.create({
-            data: {
-              userId: newUser.id,
-              amount: 50,
-              description: 'Welcome bonus from referral',
-              expiresAt: pointsExpiryDate,
-            },
-          });
-
-          // Create welcome coupons
-          const couponExpiryDate = new Date();
-          couponExpiryDate.setMonth(couponExpiryDate.getMonth() + 6);
-
-          await tx.coupon.create({
-            data: {
-              code: `WELCOME${newUser.id.slice(-6).toUpperCase()}`,
-              discountType: 'PERCENTAGE',
-              discountValue: 10,
-              maxUses: 1,
-              usedCount: 0,
-              expiresAt: couponExpiryDate,
-              description: 'Welcome coupon - 10% off your first event',
-              createdById: newUser.id,
-            },
+          await tx.user.update({
+            where: { id: newUser.id },
+            data: { referredBy: referrer.id }
           });
         }
-      } else {
-        // Standard welcome bonus for non-referral users
-        const pointsExpiryDate = new Date();
-        pointsExpiryDate.setFullYear(pointsExpiryDate.getFullYear() + 1);
-
-        await tx.point.create({
-          data: {
-            userId: newUser.id,
-            amount: 25,
-            description: 'Welcome bonus',
-            expiresAt: pointsExpiryDate,
-          },
-        });
       }
 
       return newUser;

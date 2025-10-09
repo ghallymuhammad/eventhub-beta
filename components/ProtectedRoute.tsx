@@ -26,7 +26,7 @@ export default function ProtectedRoute({
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('mockSession');
     
     if (!userData) {
       // No user data, redirect to sign in
@@ -35,18 +35,34 @@ export default function ProtectedRoute({
     }
 
     try {
-      const parsedUser = JSON.parse(userData) as User;
+      const parsedData = JSON.parse(userData);
+      let user: User;
+
+      // Handle mock session format vs direct user format
+      if (parsedData.user) {
+        // Mock session format from signin
+        user = {
+          email: parsedData.user.email,
+          role: parsedData.user.role.toLowerCase(),
+          name: parsedData.user.name,
+          isAuthenticated: true,
+        };
+      } else {
+        // Direct user format
+        user = parsedData as User;
+      }
       
-      if (!parsedUser.isAuthenticated || !allowedRoles.includes(parsedUser.role)) {
+      if (!user.isAuthenticated || !allowedRoles.includes(user.role)) {
         // User not authenticated or doesn't have required role
         router.push(redirectTo);
         return;
       }
 
-      setUser(parsedUser);
+      setUser(user);
     } catch (error) {
       // Invalid user data, redirect to sign in
       localStorage.removeItem('user');
+      sessionStorage.removeItem('mockSession');
       router.push(redirectTo);
       return;
     }

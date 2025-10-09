@@ -18,15 +18,29 @@ export default function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem('user');
+    // Check if user is logged in (localStorage for permanent, sessionStorage for demo)
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('mockSession');
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedData = JSON.parse(userData);
+      // Normalize the data structure
+      if (parsedData.user) {
+        // Mock session format
+        setUser({
+          email: parsedData.user.email,
+          role: parsedData.user.role.toLowerCase(),
+          name: parsedData.user.name,
+          isAuthenticated: true,
+        });
+      } else {
+        // Direct user format
+        setUser(parsedData);
+      }
     }
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
+    sessionStorage.removeItem('mockSession');
     setUser(null);
     setMobileMenuOpen(false);
     router.push('/');
